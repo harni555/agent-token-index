@@ -1,0 +1,1 @@
+{"endpoint": "datasets/app-rankings", "fetchedAt": "2026-09-29T17:01:13.341620+00:00", "params": {"end_date": "2025-04-13", "limit": 100, "offset": 0, "sort": "popular", "start_date": "2025-04-07", "subcategory": "personal-agent"}, "payload": {"data": [], "meta": {"as_of": "2026-09-29T17:01:13.253Z", "end_date": "2025-04-13", "start_date": "2025-04-07", "version": "v1"}}}
