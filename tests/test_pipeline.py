@@ -70,4 +70,20 @@ class PipelineTests(unittest.TestCase):
         p.validate_index(doc)
         with self.assertRaises(ValueError):p.validate_index(doc,require_fresh=True)
 
+    def test_missing_snapshot_does_not_replace_published_output(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target=Path(directory)/'index.json'
+            target.write_text('last-known-good')
+            with patch.object(p,'RAW',Path(directory)/'raw'),patch.object(p,'OUT',target):
+                with self.assertRaises(ValueError):p.rebuild(dt.date(2025,1,5))
+            self.assertEqual(target.read_text(),'last-known-good')
+
+    def test_stale_and_inconsistent_shares_fail(self):
+        series={k:{'tokens':'10','requests':'2','share':10} for k in p.GROUPS}
+        doc={'schemaVersion':1,'status':'ready','dataThrough':'2025-01-12','weeks':[{'start':'2025-01-06','end':'2025-01-12','platformTokens':'100','series':series}]}
+        p.validate_index(doc)
+        with self.assertRaises(ValueError):p.validate_index(doc,require_fresh=True)
+        series['PATI']['share']=110
+        with self.assertRaises(ValueError):p.validate_index(doc)
+
 if __name__=='__main__':unittest.main()

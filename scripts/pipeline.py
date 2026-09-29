@@ -283,6 +283,8 @@ def validate_index(doc, require_fresh=False):
                     raise ValueError('Agent/platform population mismatch; share outside 0-100%')
     if require_fresh and (dt.datetime.now(dt.timezone.utc).date()-dt.date.fromisoformat(doc['dataThrough'])).days > 9:
         raise ValueError('Stale data: publication blocked')
+    if require_fresh and any(doc['weeks'][-1]['series'][k]['tokens'] is None for k in GROUPS):
+        raise ValueError('Latest source window is empty for a required category; publication blocked')
 
 def collect(prices_only=False, budget=450):
     client = Client(budget)

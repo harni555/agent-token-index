@@ -10,7 +10,7 @@ const allowed=(key,values,fallback)=>values.includes(query.get(key))?query.get(k
 let state={range:allowed('range',['3M','6M','1Y','All'],'All'),mode:allowed('mode',['raw','normalized'],'raw'),smooth:allowed('smooth',['weekly','ma4'],'weekly'),series:allowed('series',['PATI','CATI','BAWI','IDE'],'BAWI'),ide:query.get('ide')==='1',week:query.get('week')};
 let data;
 function save(){const p=new URLSearchParams({...state,ide:state.ide?'1':'0',week:state.week||''});history.replaceState(null,'',`${location.pathname}?${p}`)}
-function selectedWeek(){return data.weeks.find(w=>w.end===state.week)||data.weeks.at(-1)}
+function selectedWeek(){return data.weeks.find(w=>w.end===state.week&&w.completeWeek)||data.weeks.filter(w=>w.completeWeek).at(-1)}
 function status(){if(!data.dataThrough)return {label:'Awaiting first collection',cls:'pending'};let days=(Date.now()-Date.parse(data.dataThrough+'T00:00:00Z'))/864e5;return days>9?{label:`Stale · through ${data.dataThrough}`,cls:'stale'}:{label:`Data through ${data.dataThrough}`,cls:'fresh'}}
 function buttons(key,values){return `<div class="segmented" role="group" aria-label="${key}">${values.map(([v,l])=>`<button data-key="${key}" data-value="${v}" aria-pressed="${state[key]===v}">${l}</button>`).join('')}</div>`}
 function render(){
