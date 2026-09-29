@@ -121,7 +121,7 @@ class Client:
             self.remaining -= 1
             self.previous = time.monotonic()
             headers = {'Accept': 'application/json', 'User-Agent': 'AgentTokenIndex/1.0'}
-            if self.key:
+            if self.key and endpoint != 'models':
                 headers['Authorization'] = 'Bearer ' + self.key
             url = 'https://openrouter.ai/api/v1/' + endpoint + '?' + urllib.parse.urlencode(params)
             try:

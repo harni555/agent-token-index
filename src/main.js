@@ -1,59 +1,304 @@
-import './style.css';
+import "./style.css";
 
-const $ = s => document.querySelector(s);
-const fmt = (v, digits=2) => v==null ? '—' : Intl.NumberFormat('en-US',{notation:'compact',maximumFractionDigits:digits}).format(Number(v));
-const pct = v => v==null ? '—' : `${v>0?'+':''}${v.toFixed(1)}%`;
-const esc = s => String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const meta = {PATI:{name:'Personal agents',color:'#70e5b2',tag:'personal-agent'},CATI:{name:'Coding agents',color:'#77adff',tag:'cli-agent + cloud-agent'},BAWI:{name:'Broad agentic workload',color:'#c2a4ff',tag:'Deduplicated union of PATI + CATI'},IDE:{name:'IDE extensions',color:'#f4be6c',tag:'Separate comparison · excluded from BAWI'}};
+const $ = (s) => document.querySelector(s);
+const fmt = (v, digits = 2) =>
+  v == null
+    ? "—"
+    : Intl.NumberFormat("en-US", {
+        notation: "compact",
+        maximumFractionDigits: digits,
+      }).format(Number(v));
+const pct = (v) => (v == null ? "—" : `${v > 0 ? "+" : ""}${v.toFixed(1)}%`);
+const esc = (s) =>
+  String(s).replace(
+    /[&<>"']/g,
+    (c) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[
+        c
+      ],
+  );
+const meta = {
+  PATI: { name: "Personal agents", color: "#70e5b2", tag: "personal-agent" },
+  CATI: {
+    name: "Coding agents",
+    color: "#77adff",
+    tag: "cli-agent + cloud-agent",
+  },
+  BAWI: {
+    name: "Broad agentic workload",
+    color: "#c2a4ff",
+    tag: "Deduplicated union of PATI + CATI",
+  },
+  IDE: {
+    name: "IDE extensions",
+    color: "#f4be6c",
+    tag: "Separate comparison · excluded from BAWI",
+  },
+};
 const query = new URLSearchParams(location.search);
-const allowed=(key,values,fallback)=>values.includes(query.get(key))?query.get(key):fallback;
-let state={range:allowed('range',['3M','6M','1Y','All'],'All'),mode:allowed('mode',['raw','normalized'],'raw'),smooth:allowed('smooth',['weekly','ma4'],'weekly'),series:allowed('series',['PATI','CATI','BAWI','IDE'],'BAWI'),ide:query.get('ide')==='1',week:query.get('week')};
+const allowed = (key, values, fallback) =>
+  values.includes(query.get(key)) ? query.get(key) : fallback;
+let state = {
+  range: allowed("range", ["3M", "6M", "1Y", "All"], "All"),
+  mode: allowed("mode", ["raw", "normalized"], "raw"),
+  smooth: allowed("smooth", ["weekly", "ma4"], "weekly"),
+  series: allowed("series", ["PATI", "CATI", "BAWI", "IDE"], "BAWI"),
+  ide: query.get("ide") === "1",
+  week: query.get("week"),
+};
 let data;
-function save(){const p=new URLSearchParams({...state,ide:state.ide?'1':'0',week:state.week||''});history.replaceState(null,'',`${location.pathname}?${p}`)}
-function selectedWeek(){return data.weeks.find(w=>w.end===state.week&&w.completeWeek)||data.weeks.filter(w=>w.completeWeek).at(-1)}
-function status(){if(!data.dataThrough)return {label:'Awaiting first collection',cls:'pending'};let days=(Date.now()-Date.parse(data.dataThrough+'T00:00:00Z'))/864e5;return days>9?{label:`Stale · through ${data.dataThrough}`,cls:'stale'}:{label:`Data through ${data.dataThrough}`,cls:'fresh'}}
-function buttons(key,values){return `<div class="segmented" role="group" aria-label="${key}">${values.map(([v,l])=>`<button data-key="${key}" data-value="${v}" aria-pressed="${state[key]===v}">${l}</button>`).join('')}</div>`}
-function render(){
- const fresh=status(),week=selectedWeek(),s=week?.series[state.series],base=data.baselines[state.series];
- const unavailable=!data.weeks.length;
- $('#app').innerHTML=`
+function save() {
+  const p = new URLSearchParams({
+    ...state,
+    ide: state.ide ? "1" : "0",
+    week: state.week || "",
+  });
+  history.replaceState(null, "", `${location.pathname}?${p}`);
+}
+function selectedWeek() {
+  return (
+    data.weeks.find((w) => w.end === state.week && w.completeWeek) ||
+    data.weeks.filter((w) => w.completeWeek).at(-1)
+  );
+}
+function status() {
+  if (!data.dataThrough)
+    return { label: "Awaiting first collection", cls: "pending" };
+  let days = (Date.now() - Date.parse(data.dataThrough + "T00:00:00Z")) / 864e5;
+  return days > 9
+    ? { label: `Stale · through ${data.dataThrough}`, cls: "stale" }
+    : { label: `Data through ${data.dataThrough}`, cls: "fresh" };
+}
+function buttons(key, values) {
+  return `<div class="segmented" role="group" aria-label="${key}">${values.map(([v, l]) => `<button data-key="${key}" data-value="${v}" aria-pressed="${state[key] === v}">${l}</button>`).join("")}</div>`;
+}
+function render() {
+  const fresh = status(),
+    week = selectedWeek(),
+    s = week?.series[state.series],
+    base = data.baselines[state.series];
+  const unavailable = !data.weeks.length;
+  $("#app").innerHTML = `
  <header><a class="brand" href="./" aria-label="Agent Token Index home"><span class="brandmark"><i></i><i></i><i></i></span>ATI <span class="brand-sub">RESEARCH OBSERVATORY</span></a><nav><a href="#history">Overview</a><a href="#methodology">Methodology</a><a href="https://github.com/harni555/agent-token-index" target="_blank" rel="noreferrer">Repository ↗</a></nav></header>
  <main><div class="intro"><div><p class="eyebrow">OPENROUTER TELEMETRY / WEEKLY</p><h1>Agent Token Index</h1><p class="subtitle">Tracking the rise of machine-consumed intelligence</p></div><div class="freshness ${fresh.cls}"><span></span>${fresh.label}<small>Monday refresh · 12:00 UTC</small></div></div>
  <aside class="caveat"><span class="info">i</span><p><strong>A window into agent activity.</strong> Observed public OpenRouter apps, with opt-in attribution. This is not a global census. Token growth does not equal vendor revenue.</p><a href="#methodology">Read methodology</a></aside>
- ${unavailable?`<aside class="setup"><div><strong>Historical data is awaiting its first authenticated collection.</strong><p>Coverage requested: January 1, 2025 onward. No sample values are shown. Add the OpenRouter secret and run the refresh to populate every view.</p></div><a href="https://github.com/harni555/agent-token-index/settings/secrets/actions">Set up data access ↗</a></aside>`:''}
- <div class="cards">${['PATI','CATI','BAWI'].map(key=>{let v=week?.series[key];return `<button class="index-card ${state.series===key?'selected':''}" data-key="series" data-value="${key}" aria-pressed="${state.series===key}" style="--accent:${meta[key].color}"><div class="card-top"><span class="index-label"><b class="dot"></b>${key}</span><span class="card-arrow">${state.series===key?'SELECTED':'VIEW SERIES'}</span></div><h2>${meta[key].name}</h2><div class="big">${fmt(v?.tokens)}<span>tokens / week</span></div><div class="card-bottom"><span class="${v?.wow<0?'negative':'positive'}">${pct(v?.wow)} <small>WoW</small></span><span>${v?.index!=null?v.index.toFixed(1):'—'} <small>index</small></span></div></button>`}).join('')}</div>
- <section id="history" class="panel history"><div class="panel-heading"><div><p class="eyebrow">HISTORICAL ACTIVITY</p><h2>Intelligence, in motion</h2></div>${buttons('range',[['3M','3M'],['6M','6M'],['1Y','1Y'],['All','All']])}</div>
- <div class="chart-toolbar"><div class="chart-legend">${Object.keys(meta).filter(k=>k!=='IDE'||state.ide).map(k=>`<button data-key="series" data-value="${k}" class="legend-item ${state.series===k?'active':''}" aria-pressed="${state.series===k}"><b style="background:${meta[k].color}"></b>${k}</button>`).join('')}</div><div class="chart-controls">${buttons('mode',[['raw','Raw tokens'],['normalized','Normalized']])}${buttons('smooth',[['weekly','Weekly'],['ma4','4-week MA']])}<label class="check"><input id="ide" type="checkbox" ${state.ide?'checked':''}> IDE</label></div></div>
- <div id="chart" class="chart"></div><div class="chart-caption"><span>${state.mode==='normalized'?'Each series has its own baseline; see methodology.':'Prompt + completion tokens · provider-reported units'}${state.smooth==='ma4'?' · trailing four complete weeks':''}</span><label>Inspect week <select id="week" aria-label="Inspect week" ${unavailable?'disabled':''}>${unavailable?'<option>No collected weeks</option>':data.weeks.filter(w=>w.completeWeek).map(w=>`<option value="${w.end}" ${week?.end===w.end?'selected':''}>${w.end}</option>`).join('')}</select></label></div></section>
- <section class="detail"><div class="detail-title"><span class="index-label" style="--accent:${meta[state.series].color}"><b class="dot"></b>${state.series}</span><h2>${meta[state.series].name}</h2><span>${week?`${week.start} – ${week.end}`:'No observation yet'}</span></div><div class="metrics">${[['4-week growth',pct(s?.fourWeekGrowth),'Versus four weeks earlier'],['Requests',fmt(s?.requests),'Observed ranked apps'],['Tokens / request',fmt(s?.tokensPerRequest),'Total tokens ÷ requests'],['Observed agent share',s?.share==null?'—':s.share.toFixed(2)+'%','Of public OpenRouter token dataset']].map(([label,value,note])=>`<div><p>${label}</p><strong>${value}</strong><small>${note}</small></div>`).join('')}</div></section>
- <div class="tables"><section class="panel"><div class="panel-heading"><div><p class="eyebrow">APPLICATION LANDSCAPE</p><h2>Top ${state.series==='IDE'?'IDE':state.series} apps</h2></div><span class="pill">${s?.appCount??'—'} observed</span></div><p class="panel-note">${s?.capped?'Ranking ceiling reached: totals are a lower bound.':'Canonical apps deduplicated within the selected series.'}</p><div class="table-wrap"><table><thead><tr><th>Application</th><th>Weekly tokens</th><th>Requests</th></tr></thead><tbody>${s?.apps.length?s.apps.map((a,i)=>`<tr><td><span class="rank">${String(i+1).padStart(2,'0')}</span>${esc(a.name)}<small>${esc(a.categories.join(' · '))}</small></td><td>${fmt(a.tokens)}</td><td>${fmt(a.requests)}</td></tr>`).join(''):`<tr><td colspan="3" class="empty-table"><span>App rankings will appear here</span><small>Historical rankings require authenticated data access.</small></td></tr>`}</tbody></table></div></section>
- <section class="panel"><div class="panel-heading"><div><p class="eyebrow">PLATFORM CONTEXT</p><h2>OpenRouter model mix</h2></div><span class="pill">Public traffic</span></div><p class="panel-note">Platform-wide model usage; this is not agent-only model mix.</p><div class="model-list">${week?.models.length?week.models.slice(0,10).map((m,i)=>`<div class="model"><div><span>${esc(m.name)}</span><b>${m.share?.toFixed(1)??'—'}%</b></div><div class="track"><i style="width:${m.share||0}%;background:${['#77adff','#70e5b2','#c2a4ff'][i%3]}"></i></div><small>${fmt(m.tokens)} tokens</small></div>`).join(''):`<div class="empty-table"><span>Model mix will appear here</span><small>Daily top 50 models plus the source’s “other” bucket.</small></div>`}</div></section></div>
- <section id="methodology" class="panel methodology"><div class="panel-heading"><div><p class="eyebrow">READ THE MEASURE, NOT JUST THE NUMBER</p><h2>Methodology & limitations</h2></div><span class="pill">v1.0</span></div><div class="method-grid"><article><h3>01 / Classification</h3><p><strong>PATI</strong> tracks <code>personal-agent</code>. <strong>CATI</strong> is the union of <code>cli-agent</code> and <code>cloud-agent</code>. <strong>BAWI</strong> is their deduplicated union. IDE extensions are a separate comparison, excluded from BAWI. Series overlap; do not add their displayed totals.</p><p>Categories are OpenRouter’s classifications at collection time, not proven historical classifications. New attribution, reclassification and rank turnover can change the trend.</p></article><article><h3>02 / Time & formulas</h3><p>Complete Monday–Sunday weeks in UTC. January 1–5, 2025 is retained as a partial source window but excluded from index charts. Each index uses the mean of all three complete January 2025 weeks as 100, otherwise the first available positive complete week.</p><p>WoW = W / W−1 − 1. Four-week growth = W / W−4 − 1. Moving average = mean of four consecutive complete weeks. Missing observations remain gaps. Current ${state.series} baseline: <strong>${base?.start?`${esc(base.label)} (${base.start})`:'not established'}</strong>.</p></article><article><h3>03 / What coverage means</h3><p>OpenRouter is one venue, not a census of global inference. App attribution is opt-in; hidden and private apps are excluded. Rankings expose at most 200 apps per subcategory. At the ceiling, totals are observed lower bounds.</p><p>Share divides observed agent tokens by the public rankings dataset for the same dates, including “other.” It is not a share of all OpenRouter traffic. Private endpoints and zero-data-retention traffic are excluded by the model dataset. Empty categories are unavailable, not assumed zero.</p></article><article><h3>04 / Tokens ≠ revenue</h3><p>Tokenizers differ across providers, so totals are an approximate workload measure. Context reuse, cache behavior, free models and routing affect economics. Token growth does not establish vendor revenue, spending or productivity.</p><p>No historical spend is estimated. Model list-price snapshots begin ${data.pricesAsOf?esc(data.pricesAsOf.slice(0,10)):'with the first successful collection'} for future research. They are not realized prices. Raw snapshots remain immutable; recent weeks may be restated by later source responses.</p></article></div></section>
- <footer><div>AGENT TOKEN INDEX <span>Independent research telemetry</span></div><p>Source: <a href="https://openrouter.ai/apps">OpenRouter (openrouter.ai/apps)</a>, as of ${sourceDate('datasets/app-rankings')}.<br>Source: <a href="https://openrouter.ai/rankings">OpenRouter (openrouter.ai/rankings)</a>, as of ${sourceDate('datasets/rankings-daily')}.<br>Data licensed under <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>. Calculations and classifications described above.</p><a href="https://github.com/harni555/agent-token-index/actions">Refresh history ↗</a></footer></main>`;
- drawChart();
- document.querySelectorAll('[data-key]').forEach(el=>el.onclick=()=>{state[el.dataset.key]=el.dataset.value;if(state.series==='IDE')state.ide=true;save();render()});
- $('#ide').onchange=e=>{state.ide=e.target.checked;if(!state.ide&&state.series==='IDE')state.series='BAWI';save();render()};
- $('#week').onchange=e=>{state.week=e.target.value;save();render()};
+ ${unavailable ? `<aside class="setup"><div><strong>Historical data is awaiting its first authenticated collection.</strong><p>Coverage requested: January 1, 2025 onward. No sample values are shown. Add the OpenRouter secret and run the refresh to populate every view.</p></div><a href="https://github.com/harni555/agent-token-index/settings/secrets/actions">Set up data access ↗</a></aside>` : ""}
+ <div class="cards">${["PATI", "CATI", "BAWI"]
+   .map((key) => {
+     let v = week?.series[key];
+     return `<button class="index-card ${state.series === key ? "selected" : ""}" data-key="series" data-value="${key}" aria-pressed="${state.series === key}" style="--accent:${meta[key].color}"><div class="card-top"><span class="index-label"><b class="dot"></b>${key}</span><span class="card-arrow">${state.series === key ? "SELECTED" : "VIEW SERIES"}</span></div><h2>${meta[key].name}</h2><div class="big">${fmt(v?.tokens)}<span>tokens / week</span></div><div class="card-bottom"><span class="${v?.wow < 0 ? "negative" : "positive"}">${pct(v?.wow)} <small>WoW</small></span><span>${v?.index != null ? v.index.toFixed(1) : "—"} <small>index</small></span></div></button>`;
+   })
+   .join("")}</div>
+ <section id="history" class="panel history"><div class="panel-heading"><div><p class="eyebrow">HISTORICAL ACTIVITY</p><h2>Intelligence, in motion</h2></div>${buttons(
+   "range",
+   [
+     ["3M", "3M"],
+     ["6M", "6M"],
+     ["1Y", "1Y"],
+     ["All", "All"],
+   ],
+ )}</div>
+ <div class="chart-toolbar"><div class="chart-legend">${Object.keys(meta)
+   .filter((k) => k !== "IDE" || state.ide)
+   .map(
+     (k) =>
+       `<button data-key="series" data-value="${k}" class="legend-item ${state.series === k ? "active" : ""}" aria-pressed="${state.series === k}"><b style="background:${meta[k].color}"></b>${k}</button>`,
+   )
+   .join("")}</div><div class="chart-controls">${buttons("mode", [
+   ["raw", "Raw tokens"],
+   ["normalized", "Normalized"],
+ ])}${buttons("smooth", [
+   ["weekly", "Weekly"],
+   ["ma4", "4-week MA"],
+ ])}<label class="check"><input id="ide" type="checkbox" ${state.ide ? "checked" : ""}> IDE</label></div></div>
+ <div id="chart" class="chart"></div><div class="chart-caption"><span>${state.mode === "normalized" ? "Each series has its own baseline; see methodology." : "Prompt + completion tokens · provider-reported units"}${state.smooth === "ma4" ? " · trailing four complete weeks" : ""}</span><label>Inspect week <select id="week" aria-label="Inspect week" ${unavailable ? "disabled" : ""}>${
+   unavailable
+     ? "<option>No collected weeks</option>"
+     : data.weeks
+         .filter((w) => w.completeWeek)
+         .map(
+           (w) =>
+             `<option value="${w.end}" ${week?.end === w.end ? "selected" : ""}>${w.end}</option>`,
+         )
+         .join("")
+ }</select></label></div></section>
+ <section class="detail"><div class="detail-title"><span class="index-label" style="--accent:${meta[state.series].color}"><b class="dot"></b>${state.series}</span><h2>${meta[state.series].name}</h2><span>${week ? `${week.start} – ${week.end}` : "No observation yet"}</span></div><div class="metrics">${[
+   ["4-week growth", pct(s?.fourWeekGrowth), "Versus four weeks earlier"],
+   ["Requests", fmt(s?.requests), "Observed ranked apps"],
+   ["Tokens / request", fmt(s?.tokensPerRequest), "Total tokens ÷ requests"],
+   [
+     "Observed agent share",
+     s?.share == null ? "—" : s.share.toFixed(2) + "%",
+     "Of public OpenRouter token dataset",
+   ],
+ ]
+   .map(
+     ([label, value, note]) =>
+       `<div><p>${label}</p><strong>${value}</strong><small>${note}</small></div>`,
+   )
+   .join("")}</div></section>
+ <div class="tables"><section class="panel"><div class="panel-heading"><div><p class="eyebrow">APPLICATION LANDSCAPE</p><h2>Top ${state.series === "IDE" ? "IDE" : state.series} apps</h2></div><span class="pill">${s?.appCount ?? "—"} observed</span></div><p class="panel-note">${s?.capped ? "Ranking ceiling reached: totals are a lower bound." : "Canonical apps deduplicated within the selected series."}</p><div class="table-wrap"><table><thead><tr><th>Application</th><th>Weekly tokens</th><th>Requests</th></tr></thead><tbody>${s?.apps.length ? s.apps.map((a, i) => `<tr><td><span class="rank">${String(i + 1).padStart(2, "0")}</span>${esc(a.name)}<small>${esc(a.categories.join(" · "))}</small></td><td>${fmt(a.tokens)}</td><td>${fmt(a.requests)}</td></tr>`).join("") : `<tr><td colspan="3" class="empty-table"><span>App rankings will appear here</span><small>Historical rankings require authenticated data access.</small></td></tr>`}</tbody></table></div></section>
+ <section class="panel"><div class="panel-heading"><div><p class="eyebrow">PLATFORM CONTEXT</p><h2>OpenRouter model mix</h2></div><span class="pill">Public traffic</span></div><p class="panel-note">Platform-wide model usage; this is not agent-only model mix.</p><div class="model-list">${
+   week?.models.length
+     ? week.models
+         .slice(0, 10)
+         .map(
+           (m, i) =>
+             `<div class="model"><div><span>${esc(m.name)}</span><b>${m.share?.toFixed(1) ?? "—"}%</b></div><div class="track"><i style="width:${m.share || 0}%;background:${["#77adff", "#70e5b2", "#c2a4ff"][i % 3]}"></i></div><small>${fmt(m.tokens)} tokens</small></div>`,
+         )
+         .join("")
+     : `<div class="empty-table"><span>Model mix will appear here</span><small>Daily top 50 models plus the source’s “other” bucket.</small></div>`
+ }</div></section></div>
+ <section id="methodology" class="panel methodology"><div class="panel-heading"><div><p class="eyebrow">READ THE MEASURE, NOT JUST THE NUMBER</p><h2>Methodology & limitations</h2></div><span class="pill">v1.0</span></div><div class="method-grid"><article><h3>01 / Classification</h3><p><strong>PATI</strong> tracks <code>personal-agent</code>. <strong>CATI</strong> is the union of <code>cli-agent</code> and <code>cloud-agent</code>. <strong>BAWI</strong> is their deduplicated union. IDE extensions are a separate comparison, excluded from BAWI. Series overlap; do not add their displayed totals.</p><p>Categories are OpenRouter’s classifications at collection time, not proven historical classifications. New attribution, reclassification and rank turnover can change the trend.</p></article><article><h3>02 / Time & formulas</h3><p>Complete Monday–Sunday weeks in UTC. January 1–5, 2025 is retained as a partial source window but excluded from index charts. Each index uses the mean of all three complete January 2025 weeks as 100, otherwise the first available positive complete week.</p><p>WoW = W / W−1 − 1. Four-week growth = W / W−4 − 1. Moving average = mean of four consecutive complete weeks. Missing observations remain gaps. Current ${state.series} baseline: <strong>${base?.start ? `${esc(base.label)} (${base.start})` : "not established"}</strong>.</p></article><article><h3>03 / What coverage means</h3><p>OpenRouter is one venue, not a census of global inference. App attribution is opt-in; hidden and private apps are excluded. Rankings expose at most 200 apps per subcategory. At the ceiling, totals are observed lower bounds.</p><p>Share divides observed agent tokens by the public rankings dataset for the same dates, including “other.” It is not a share of all OpenRouter traffic. Private endpoints and zero-data-retention traffic are excluded by the model dataset. Empty categories are unavailable, not assumed zero.</p></article><article><h3>04 / Tokens ≠ revenue</h3><p>Tokenizers differ across providers, so totals are an approximate workload measure. Context reuse, cache behavior, free models and routing affect economics. Token growth does not establish vendor revenue, spending or productivity.</p><p>No historical spend is estimated. Model list-price snapshots begin ${data.pricesAsOf ? esc(data.pricesAsOf.slice(0, 10)) : "with the first successful collection"} for future research. They are not realized prices. Raw snapshots remain immutable; recent weeks may be restated by later source responses.</p></article></div></section>
+ <footer><div>AGENT TOKEN INDEX <span>Independent research telemetry</span></div><p>Source: <a href="https://openrouter.ai/apps">OpenRouter (openrouter.ai/apps)</a>, as of ${sourceDate("datasets/app-rankings")}.<br>Source: <a href="https://openrouter.ai/rankings">OpenRouter (openrouter.ai/rankings)</a>, as of ${sourceDate("datasets/rankings-daily")}.<br>Data licensed under <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>. Calculations and classifications described above.</p><a href="https://github.com/harni555/agent-token-index/actions">Refresh history ↗</a></footer></main>`;
+  drawChart();
+  document.querySelectorAll("[data-key]").forEach(
+    (el) =>
+      (el.onclick = () => {
+        state[el.dataset.key] = el.dataset.value;
+        if (state.series === "IDE") state.ide = true;
+        save();
+        render();
+      }),
+  );
+  $("#ide").onchange = (e) => {
+    state.ide = e.target.checked;
+    if (!state.ide && state.series === "IDE") state.series = "BAWI";
+    save();
+    render();
+  };
+  $("#week").onchange = (e) => {
+    state.week = e.target.value;
+    save();
+    render();
+  };
 }
-function sourceDate(endpoint){const dates=data.sources.filter(s=>s.endpoint===endpoint).map(s=>s.asOf).sort();return dates.length?esc(dates.at(-1))+' (latest snapshot; per-window timestamps in repository)':'not yet collected'}
-function drawChart(){
- let weeks=data.weeks.filter(w=>w.completeWeek);const months={'3M':3,'6M':6,'1Y':12};if(months[state.range]&&weeks.length){let cutoff=new Date(weeks.at(-1).end+'T00:00:00Z');cutoff.setUTCMonth(cutoff.getUTCMonth()-months[state.range]);weeks=weeks.filter(w=>new Date(w.end+'T00:00:00Z')>=cutoff)}
- const keys=Object.keys(meta).filter(k=>k!=='IDE'||state.ide);
- const metric=state.mode==='normalized'?(state.smooth==='ma4'?'indexMa4':'index'):(state.smooth==='ma4'?'ma4':'tokens');
- const value=(w,k)=>w.series[k][metric]==null?null:Number(w.series[k][metric]);
- const vals=weeks.flatMap(w=>keys.map(k=>value(w,k))).filter(v=>v!=null);
- if(!vals.length){$('#chart').innerHTML=`<div class="chart-empty"><div class="empty-icon">∿</div><h3>${data.weeks.length?'No comparable observations in this view':'The historical record starts with real data'}</h3><p>${data.weeks.length?'Try a longer window or weekly values. Missing periods are never interpolated.':'PATI, CATI and BAWI will appear after the first validated backfill.'}</p><div class="empty-series"><span style="color:#70e5b2">PATI</span><span style="color:#77adff">CATI</span><span style="color:#c2a4ff">BAWI</span></div></div>`;return}
- const W=1120,H=340,L=75,R=25,T=24,B=45,max=Math.max(...vals,1)*1.1;
- const x=i=>L+(W-L-R)*(weeks.length===1?.5:i/(weeks.length-1));const y=v=>T+(H-T-B)*(1-v/max);
- let svg=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Historical weekly token indices. Use Inspect week to access exact values.">`;
- for(let i=0;i<=4;i++){let v=max*i/4,yy=y(v);svg+=`<line x1="${L}" y1="${yy}" x2="${W-R}" y2="${yy}" stroke="#29343f" stroke-dasharray="3 5"/><text x="${L-12}" y="${yy+4}" text-anchor="end" fill="#97a4b5" font-size="12">${fmt(v,1)}</text>`}
- for(const k of keys){let path='',connected=false;weeks.forEach((w,i)=>{const v=value(w,k);if(v==null){connected=false;return}path+=`${connected?'L':'M'}${x(i)},${y(v)} `;connected=true});svg+=`<path d="${path}" fill="none" stroke="${meta[k].color}" stroke-width="${state.series===k?3:1.8}" opacity="${state.series===k?1:.65}"/>`;if(weeks.length===1&&value(weeks[0],k)!=null)svg+=`<circle cx="${x(0)}" cy="${y(value(weeks[0],k))}" r="4" fill="${meta[k].color}"/>`}
- const idx=[...new Set([0,Math.floor((weeks.length-1)*.25),Math.floor((weeks.length-1)*.5),Math.floor((weeks.length-1)*.75),weeks.length-1])];for(const i of idx)svg+=`<text x="${x(i)}" y="${H-12}" text-anchor="middle" fill="#97a4b5" font-size="12">${weeks[i].end.slice(0,7)}</text>`;
- const wi=weeks.findIndex(w=>w.end===selectedWeek()?.end);if(wi>=0)svg+=`<line x1="${x(wi)}" x2="${x(wi)}" y1="${T}" y2="${H-B}" stroke="#9ba8b7" opacity=".4"/>`;
- svg+='</svg><div id="tooltip" class="tooltip" hidden></div>';
- $('#chart').innerHTML=svg;
- const el=$('#chart svg');el.onpointermove=e=>{const rect=el.getBoundingClientRect();let i=Math.round(((e.clientX-rect.left)/rect.width*W-L)/(W-L-R)*(weeks.length-1));i=Math.min(weeks.length-1,Math.max(0,i));let w=weeks[i];let tip=$('#tooltip');tip.hidden=false;tip.innerHTML=`<strong>Week ending ${w.end}</strong>${keys.map(k=>`<div><span style="color:${meta[k].color}">${k}</span><b>${fmt(value(w,k))}</b></div>`).join('')}`;tip.style.left=Math.min(e.clientX-rect.left+15,rect.width-205)+'px';tip.style.top='30px';};el.onpointerleave=()=>$('#tooltip').hidden=true;
- el.onclick=e=>{let rect=el.getBoundingClientRect();let i=Math.round(((e.clientX-rect.left)/rect.width*W-L)/(W-L-R)*(weeks.length-1));state.week=weeks[Math.min(weeks.length-1,Math.max(0,i))].end;save();render()};
+function sourceDate(endpoint) {
+  const dates = data.sources
+    .filter((s) => s.endpoint === endpoint)
+    .map((s) => s.asOf)
+    .sort();
+  return dates.length
+    ? esc(dates.at(-1)) +
+        " (latest snapshot; per-window timestamps in repository)"
+    : "not yet collected";
 }
-async function start(){try{const r=await fetch(`${import.meta.env.BASE_URL}data/index.json`,{cache:'no-store'});if(!r.ok)throw Error('Data request failed');data=await r.json();if(data.schemaVersion!==1||!Array.isArray(data.weeks))throw Error('Unsupported data format');render()}catch(e){$('#app').innerHTML='<main class="load-error"><h1>Data could not be loaded</h1><p>The research snapshot is temporarily unavailable. Please reload or check the refresh history.</p><a href="https://github.com/harni555/agent-token-index/actions">View refresh history</a></main>'}}
+function drawChart() {
+  let weeks = data.weeks.filter((w) => w.completeWeek);
+  const months = { "3M": 3, "6M": 6, "1Y": 12 };
+  if (months[state.range] && weeks.length) {
+    let cutoff = new Date(weeks.at(-1).end + "T00:00:00Z");
+    cutoff.setUTCMonth(cutoff.getUTCMonth() - months[state.range]);
+    weeks = weeks.filter((w) => new Date(w.end + "T00:00:00Z") >= cutoff);
+  }
+  const keys = Object.keys(meta).filter((k) => k !== "IDE" || state.ide);
+  const metric =
+    state.mode === "normalized"
+      ? state.smooth === "ma4"
+        ? "indexMa4"
+        : "index"
+      : state.smooth === "ma4"
+        ? "ma4"
+        : "tokens";
+  const value = (w, k) =>
+    w.series[k][metric] == null ? null : Number(w.series[k][metric]);
+  const vals = weeks
+    .flatMap((w) => keys.map((k) => value(w, k)))
+    .filter((v) => v != null);
+  if (!vals.length) {
+    $("#chart").innerHTML =
+      `<div class="chart-empty"><div class="empty-icon">∿</div><h3>${data.weeks.length ? "No comparable observations in this view" : "The historical record starts with real data"}</h3><p>${data.weeks.length ? "Try a longer window or weekly values. Missing periods are never interpolated." : "PATI, CATI and BAWI will appear after the first validated backfill."}</p><div class="empty-series"><span style="color:#70e5b2">PATI</span><span style="color:#77adff">CATI</span><span style="color:#c2a4ff">BAWI</span></div></div>`;
+    return;
+  }
+  const W = 1120,
+    H = 340,
+    L = 75,
+    R = 25,
+    T = 24,
+    B = 45,
+    max = Math.max(...vals, 1) * 1.1;
+  const x = (i) =>
+    L + (W - L - R) * (weeks.length === 1 ? 0.5 : i / (weeks.length - 1));
+  const y = (v) => T + (H - T - B) * (1 - v / max);
+  let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Historical weekly token indices. Use Inspect week to access exact values.">`;
+  for (let i = 0; i <= 4; i++) {
+    let v = (max * i) / 4,
+      yy = y(v);
+    svg += `<line x1="${L}" y1="${yy}" x2="${W - R}" y2="${yy}" stroke="#29343f" stroke-dasharray="3 5"/><text x="${L - 12}" y="${yy + 4}" text-anchor="end" fill="#97a4b5" font-size="12">${fmt(v, 1)}</text>`;
+  }
+  for (const k of keys) {
+    let path = "",
+      connected = false;
+    weeks.forEach((w, i) => {
+      const v = value(w, k);
+      if (v == null) {
+        connected = false;
+        return;
+      }
+      path += `${connected ? "L" : "M"}${x(i)},${y(v)} `;
+      connected = true;
+    });
+    svg += `<path d="${path}" fill="none" stroke="${meta[k].color}" stroke-width="${state.series === k ? 3 : 1.8}" opacity="${state.series === k ? 1 : 0.65}"/>`;
+    if (weeks.length === 1 && value(weeks[0], k) != null)
+      svg += `<circle cx="${x(0)}" cy="${y(value(weeks[0], k))}" r="4" fill="${meta[k].color}"/>`;
+  }
+  const idx = [
+    ...new Set([
+      0,
+      Math.floor((weeks.length - 1) * 0.25),
+      Math.floor((weeks.length - 1) * 0.5),
+      Math.floor((weeks.length - 1) * 0.75),
+      weeks.length - 1,
+    ]),
+  ];
+  for (const i of idx)
+    svg += `<text x="${x(i)}" y="${H - 12}" text-anchor="middle" fill="#97a4b5" font-size="12">${weeks[i].end.slice(0, 7)}</text>`;
+  const wi = weeks.findIndex((w) => w.end === selectedWeek()?.end);
+  if (wi >= 0)
+    svg += `<line x1="${x(wi)}" x2="${x(wi)}" y1="${T}" y2="${H - B}" stroke="#9ba8b7" opacity=".4"/>`;
+  svg += '</svg><div id="tooltip" class="tooltip" hidden></div>';
+  $("#chart").innerHTML = svg;
+  const el = $("#chart svg");
+  el.onpointermove = (e) => {
+    const rect = el.getBoundingClientRect();
+    let i = Math.round(
+      ((((e.clientX - rect.left) / rect.width) * W - L) / (W - L - R)) *
+        (weeks.length - 1),
+    );
+    i = Math.min(weeks.length - 1, Math.max(0, i));
+    let w = weeks[i];
+    let tip = $("#tooltip");
+    tip.hidden = false;
+    tip.innerHTML = `<strong>Week ending ${w.end}</strong>${keys.map((k) => `<div><span style="color:${meta[k].color}">${k}</span><b>${fmt(value(w, k))}</b></div>`).join("")}`;
+    tip.style.left =
+      Math.min(e.clientX - rect.left + 15, rect.width - 205) + "px";
+    tip.style.top = "30px";
+  };
+  el.onpointerleave = () => ($("#tooltip").hidden = true);
+  el.onclick = (e) => {
+    let rect = el.getBoundingClientRect();
+    let i = Math.round(
+      ((((e.clientX - rect.left) / rect.width) * W - L) / (W - L - R)) *
+        (weeks.length - 1),
+    );
+    state.week = weeks[Math.min(weeks.length - 1, Math.max(0, i))].end;
+    save();
+    render();
+  };
+}
+async function start() {
+  try {
+    const r = await fetch(`${import.meta.env.BASE_URL}data/index.json`, {
+      cache: "no-store",
+    });
+    if (!r.ok) throw Error("Data request failed");
+    data = await r.json();
+    if (data.schemaVersion !== 1 || !Array.isArray(data.weeks))
+      throw Error("Unsupported data format");
+    render();
+  } catch (e) {
+    $("#app").innerHTML =
+      '<main class="load-error"><h1>Data could not be loaded</h1><p>The research snapshot is temporarily unavailable. Please reload or check the refresh history.</p><a href="https://github.com/harni555/agent-token-index/actions">View refresh history</a></main>';
+  }
+}
 start();
