@@ -1,0 +1,72 @@
+name: Refresh data
+on:
+  schedule:
+    - cron: '0 12 * * 1'
+  workflow_dispatch:
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+concurrency:
+  group: agent-token-index-publish
+  cancel-in-progress: false
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - name: Collect immutable snapshots and rebuild indices
+        id: collect
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: python scripts/pipeline.py refresh
+      - name: Validate freshness
+        run: python scripts/pipeline.py validate --require-fresh
+      - run: npm run build
+      - name: Preserve collection progress even after upstream failure
+        if: always()
+        run: |
+          git config user.name 'agent-token-index[bot]'
+          git config user.email 'agent-token-index[bot]@users.noreply.github.com'
+          git add data/raw
+          if [ '${{ steps.collect.outcome }}' = 'success' ]; then
+            git add data/derived public/data/index.json
+          fi
+          if ! git diff --cached --quiet; then
+            git commit -m 'data: preserve OpenRouter snapshots and validated series'
+            git push origin HEAD:main
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: collection-evidence
+          path: |
+            data/
+            public/data/index.json
+          retention-days: 30
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+      - name: Deploy validated research snapshot
+        id: deployment
+        uses: actions/deploy-pages@v4
+      - name: Refresh summary
+        if: always()
+        run: |
+          echo '### Agent Token Index refresh' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Collection: ${{ steps.collect.outcome }}. Deployment: ${{ steps.deployment.outcome }}.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'On failure, inspect logs and retained evidence; the prior Pages deployment remains live.' >> "$GITHUB_STEP_SUMMARY"
