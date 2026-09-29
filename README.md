@@ -58,7 +58,7 @@ Missing or empty category responses remain unavailable rather than assumed zero.
 
 ## Architecture and files
 
-The frontend is Vite + plain ES modules/CSS/SVG, with no application server or API credentials in the browser. Its complete static output lives in `dist/`. Charts support 3M/6M/1Y/All, raw/normalized, weekly/4-week MA, and an optional IDE overlay. Click a chart week or use the keyboard-accessible week selector to inspect its metrics and app/model rankings. Filter state persists in the URL. Responsive layouts include stacked cards and scrollable data tables. A dynamic freshness indicator becomes stale when the data-through date is more than nine days old.
+The frontend is Vite + plain ES modules/CSS/SVG, with no application server or API credentials in the browser. Its complete static output lives in `dist/`. Charts support 3M/6M/1Y/All, raw/normalized, weekly/4-week MA, and an optional IDE overlay. Raw charts compare series; normalized charts show the selected series alone because very different starting scales can obscure the other indices. Click a chart week or use the keyboard-accessible week selector to inspect its metrics and app/model rankings. Filter state persists in the URL. Responsive layouts include stacked cards and scrollable data tables. A dynamic freshness indicator becomes stale when the data-through date is more than nine days old.
 
 ```
 scripts/pipeline.py       collection, snapshots, validation, derivation
@@ -70,7 +70,7 @@ tests/                   synthetic unit fixtures only; never published as data
 .github/workflows/       scheduled collection and static deployment
 ```
 
-Every snapshot contains its endpoint, query parameters, retrieval timestamp and entire parsed response, including source `meta`. The filename hashes its saved bytes. Replay verifies checksums before derivation. Rebuilding requires all historical weekly app windows and all model days; it refuses gaps, malformed integers, mismatched response windows, duplicate rows, conflicting overlaps, or invalid shares. A validated candidate replaces derived outputs atomically per file, only after the full computation succeeds.
+Every snapshot contains its endpoint, query parameters, retrieval timestamp and entire parsed response, including source `meta`. The filename hashes its saved bytes. Replay verifies checksums before derivation. Rebuilding requires all historical weekly app windows. Missing model days are retried individually; unresolved historical gaps explicitly withhold that week’s model mix, platform total and shares while retaining independently complete app series. Missing current-week platform days block publication. Rebuilding refuses malformed integers, mismatched response windows, duplicate rows, conflicting overlaps, or invalid shares. A validated candidate replaces derived outputs atomically per file, only after the full computation succeeds.
 
 ## Development
 
@@ -91,6 +91,7 @@ python scripts/pipeline.py refresh
 python scripts/pipeline.py rebuild
 python scripts/pipeline.py validate --require-fresh
 python scripts/pipeline.py prices
+python scripts/audit.py
 ```
 
 `prices` alone records today's catalog without requiring a dataset key. `rebuild` uses existing snapshots without network calls and requires coverage through the current latest completed Sunday. The bootstrap dashboard intentionally passes structural validation while showing no data; it never passes `--require-fresh`.
@@ -121,3 +122,7 @@ Source: OpenRouter (openrouter.ai/apps), as of each response's `meta.as_of`.
 Source: OpenRouter (openrouter.ai/rankings), as of each response's `meta.as_of`.
 
 Aggregated dataset content is licensed under **CC BY 4.0**. Exact per-query timestamps are retained in `data/raw` and the derived `sources` array, with latest source timestamps displayed in the footer. This independent dashboard is not an official OpenRouter product.
+
+## Initial observed coverage
+
+The September 29, 2026 backfill retrieved 90 complete weeks through September 27, 2026. PATI has no ranked observations before the week of May 12, 2025; under the complete-category rule BAWI begins then too. CATI and IDE cover all 90 complete weeks. Initial monthly model responses omitted June 15 and July 15, 2025; individual retries and final gap status are recorded in the raw snapshots and `coverage.missingModelDates`. No subcategory reached the 200-app retrieval ceiling in this backfill. These are initial-run observations, not permanent guarantees.

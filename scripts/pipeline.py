@@ -143,6 +143,11 @@ def app_params(start, end, category, offset=0):
     return {'start_date': start, 'end_date': end, 'subcategory': category,
             'sort': 'popular', 'limit': 100, 'offset': offset}
 
+def missing_days(start, finish, rows):
+    dates = {r['date'] for r in rows}
+    return [(start+dt.timedelta(days=i)).isoformat() for i in range((finish-start).days+1)
+            if (start+dt.timedelta(days=i)).isoformat() not in dates]
+
 def merge_apps(categories, selected):
     merged = {}
     for category in selected:
@@ -200,6 +205,13 @@ def rebuild(end=None):
         sources.append({'endpoint': item['endpoint'], 'asOf': item['payload']['meta']['as_of'], 'queryId': query_id(item['endpoint'], p)})
         for row in item['payload']['data']:
             daily.setdefault(row['date'], []).append(row)
+        for missing in missing_days(day, finish, item['payload']['data']):
+            repair_params = {'start_date': missing, 'end_date': missing}
+            repair = cached('datasets/rankings-daily', repair_params)
+            if repair:
+                sources.append({'endpoint': repair['endpoint'], 'asOf': repair['payload']['meta']['as_of'], 'queryId': query_id(repair['endpoint'], repair_params)})
+                for row in repair['payload']['data']:
+                    daily.setdefault(row['date'], []).append(row)
         day = next_month
     weeks = []
     for start, finish in windows(end):
@@ -225,14 +237,13 @@ def rebuild(end=None):
             categories[category] = rows
         days = (dt.date.fromisoformat(finish)-dt.date.fromisoformat(start)).days+1
         dates = [(dt.date.fromisoformat(start)+dt.timedelta(days=i)).isoformat() for i in range(days)]
-        if any(d not in daily for d in dates):
-            raise ValueError('Missing model days: refusing incomplete denominator')
+        missing_model_dates = [d for d in dates if d not in daily]
         models = {}
         for d in dates:
-            for row in daily[d]:
+            for row in daily.get(d, []):
                 name = row['model_permaslug']
                 models[name] = models.get(name, 0)+number(row['total_tokens'])
-        total = sum(models.values())
+        total = None if missing_model_dates else sum(models.values())
         series = {}
         for key, selected in GROUPS.items():
             apps = merge_apps(categories, selected)
@@ -247,14 +258,15 @@ def rebuild(end=None):
                            'appCount': len(apps), 'capped': any(c in caps for c in selected),
                            'apps': [{'id': str(r['app_id']), 'name': r['app_name'], 'tokens': str(number(r['total_tokens'])), 'requests': str(number(r['total_requests'])), 'categories': r['categories']} for r in apps[:20]]}
         weeks.append({'start': start, 'end': finish, 'completeWeek': days==7,
-                      'platformTokens': str(total), 'series': series,
-                      'models': [{'name': name, 'tokens': str(tokens), 'share': tokens/total*100 if total else None} for name,tokens in sorted(models.items(), key=lambda p:p[1], reverse=True)]})
+                      'platformTokens': str(total) if total is not None else None, 'series': series,
+                      'missingModelDates': missing_model_dates,
+                      'models': [] if missing_model_dates else [{'name': name, 'tokens': str(tokens), 'share': tokens/total*100 if total else None} for name,tokens in sorted(models.items(), key=lambda p:p[1], reverse=True)]})
     baselines = derive(weeks)
     price = cached('models', {})
     doc = {'schemaVersion': 1, 'status': 'ready', 'generatedAt': utcnow(), 'requestedStart': START.isoformat(),
            'dataThrough': end.isoformat(), 'weeks': weeks, 'baselines': baselines,
            'pricesAsOf': price['fetchedAt'] if price else None, 'sources': sources,
-           'coverage': {'message': 'Observed public ranked apps only. Historical classifications reflect the taxonomy at retrieval. Model mix covers public OpenRouter traffic, not agent-only traffic.'}}
+           'coverage': {'missingModelDates': [d for w in weeks for d in w['missingModelDates']], 'message': 'Observed public ranked apps only. Historical classifications reflect the taxonomy at retrieval. Model mix covers public OpenRouter traffic, not agent-only traffic.'}}
     validate_index(doc, require_fresh=True)
     atomic_json(OUT, doc)
     atomic_json(ROOT/'data'/'derived'/'index.json', doc)
@@ -275,16 +287,21 @@ def validate_index(doc, require_fresh=False):
         if previous and start != previous+dt.timedelta(days=1):
             raise ValueError('Gap in weekly calendar')
         previous = end
-        denominator = number(week['platformTokens'])
+        denominator = number(week['platformTokens']) if week['platformTokens'] is not None else None
         for s in week['series'].values():
             if s['tokens'] is not None:
                 number(s['tokens']); number(s['requests'])
-                if denominator <= 0 or not 0 <= s['share'] <= 100:
+                if denominator is None:
+                    if s['share'] is not None or not week.get('missingModelDates'):
+                        raise ValueError('Missing denominator must have an explicit gap and null share')
+                elif denominator <= 0 or s['share'] is None or not 0 <= s['share'] <= 100:
                     raise ValueError('Agent/platform population mismatch; share outside 0-100%')
     if require_fresh and (dt.datetime.now(dt.timezone.utc).date()-dt.date.fromisoformat(doc['dataThrough'])).days > 9:
         raise ValueError('Stale data: publication blocked')
     if require_fresh and any(doc['weeks'][-1]['series'][k]['tokens'] is None for k in GROUPS):
         raise ValueError('Latest source window is empty for a required category; publication blocked')
+    if require_fresh and doc['weeks'][-1]['platformTokens'] is None:
+        raise ValueError('Latest platform window is incomplete; publication blocked')
 
 def collect(prices_only=False, budget=450):
     client = Client(budget)
@@ -301,7 +318,9 @@ def collect(prices_only=False, budget=450):
     while day <= end:
         next_month = (day.replace(day=28)+dt.timedelta(days=4)).replace(day=1)
         finish = min(next_month-dt.timedelta(days=1), end)
-        client.get('datasets/rankings-daily', {'start_date': day.isoformat(), 'end_date': finish.isoformat()}, force=(end-finish).days < 28)
+        model_snapshot = client.get('datasets/rankings-daily', {'start_date': day.isoformat(), 'end_date': finish.isoformat()}, force=(end-finish).days < 28)
+        for missing in missing_days(day, finish, model_snapshot['payload']['data']):
+            client.get('datasets/rankings-daily', {'start_date': missing, 'end_date': missing}, force=True)
         day = next_month
     for start, finish in windows(end):
         force = (end-dt.date.fromisoformat(finish)).days < 28

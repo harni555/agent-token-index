@@ -22,6 +22,7 @@ summary = {
     'publishedEqualsDerived': True,
     'pricesAsOf': doc['pricesAsOf'],
     'completeWeeks': sum(w['completeWeek'] for w in doc['weeks']),
+    'missingModelDates': doc['coverage'].get('missingModelDates', []),
     'series': {},
 }
 for key in GROUPS:
