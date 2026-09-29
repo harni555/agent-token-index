@@ -105,5 +105,22 @@ class PipelineTests(unittest.TestCase):
                 self.assertEqual(doc['weeks'][0]['series']['BAWI']['index'],100)
                 self.assertEqual(doc['weeks'][0]['platformTokens'],'70000')
                 self.assertEqual(p.OUT.read_bytes(),(root/'data/derived/index.json').read_bytes())
+                prior=p.OUT.read_bytes()
+                p.snapshot('datasets/rankings-daily',params,{'meta':meta,'data':models[1:]})
+                with self.assertRaises(ValueError):p.rebuild(end)
+                self.assertEqual(p.OUT.read_bytes(),prior)
+
+    def test_historical_denominator_gap_is_explicit_and_never_zero_filled(self):
+        end=p.last_sunday()
+        old_end=end-dt.timedelta(days=7)
+        missing=(old_end-dt.timedelta(days=2)).isoformat()
+        old={'start':str(old_end-dt.timedelta(days=6)),'end':str(old_end),'platformTokens':None,'missingModelDates':[missing],
+             'series':{k:{'tokens':'10','requests':'2','share':None} for k in p.GROUPS}}
+        new={'start':str(end-dt.timedelta(days=6)),'end':str(end),'platformTokens':'100','missingModelDates':[],
+             'series':{k:{'tokens':'10','requests':'2','share':10} for k in p.GROUPS}}
+        doc={'schemaVersion':1,'status':'ready','dataThrough':str(end),'weeks':[old,new]}
+        p.validate_index(doc,require_fresh=True)
+        old['series']['PATI']['share']=0
+        with self.assertRaises(ValueError):p.validate_index(doc)
 
 if __name__=='__main__':unittest.main()
