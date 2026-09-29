@@ -86,4 +86,24 @@ class PipelineTests(unittest.TestCase):
         series['PATI']['share']=110
         with self.assertRaises(ValueError):p.validate_index(doc)
 
+    def test_offline_end_to_end_union_and_reproducible_outputs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            end=p.last_sunday()
+            start=end-dt.timedelta(days=6)
+            params={'start_date':start.isoformat(),'end_date':end.isoformat()}
+            meta={**params,'as_of':p.utcnow()}
+            with patch.object(p,'ROOT',root),patch.object(p,'RAW',root/'data/raw'),patch.object(p,'OUT',root/'public/data/index.json'),patch.object(p,'START',start):
+                models=[{'date':(start+dt.timedelta(days=i)).isoformat(),'model_permaslug':'fixture/model','total_tokens':'10000'} for i in range(7)]
+                p.snapshot('datasets/rankings-daily',params,{'meta':meta,'data':models})
+                for category,id,tokens in [('personal-agent',1,'100'),('cli-agent',2,'200'),('cloud-agent',2,'200'),('ide-extension',3,'300')]:
+                    p.snapshot('datasets/app-rankings',p.app_params(str(start),str(end),category),{'meta':meta,'data':[self.row(id,tokens)]})
+                p.rebuild(end)
+                doc=__import__('json').loads(p.OUT.read_text())
+                self.assertEqual(doc['weeks'][0]['series']['BAWI']['tokens'],'300')
+                self.assertEqual(doc['weeks'][0]['series']['CATI']['tokens'],'200')
+                self.assertEqual(doc['weeks'][0]['series']['BAWI']['index'],100)
+                self.assertEqual(doc['weeks'][0]['platformTokens'],'70000')
+                self.assertEqual(p.OUT.read_bytes(),(root/'data/derived/index.json').read_bytes())
+
 if __name__=='__main__':unittest.main()
