@@ -126,3 +126,9 @@ Aggregated dataset content is licensed under **CC BY 4.0**. Exact per-query time
 ## Initial observed coverage
 
 The September 29, 2026 backfill retrieved 90 complete weeks through September 27, 2026. PATI has no ranked observations before the week of May 12, 2025; under the complete-category rule BAWI begins then too. CATI and IDE cover all 90 complete weeks. Initial monthly model responses omitted June 15 and July 15, 2025; individual retries and final gap status are recorded in the raw snapshots and `coverage.missingModelDates`. No subcategory reached the 200-app retrieval ceiling in this backfill. These are initial-run observations, not permanent guarantees.
+
+## Growth, ebbs and flows
+
+The growth panel visualizes the same validated WoW and four-week growth values shown in the metrics. Green bars above zero indicate expansion; coral bars below zero indicate contraction. The white line in WoW mode is a trailing arithmetic mean of four consecutive weekly growth rates, not growth of a four-week token total. A change in growth is the current rate minus the prior week's rate, expressed in percentage points; slowing positive growth is still expansion.
+
+A separate 3M/6M/1Y/All window defaults to 6M to make recent changes legible. Plot axes retain all values, including extreme growth from small starting denominators. The cross-index heatmap shows the chosen growth measure; intensity saturates at ±40% solely for color readability. Exact values are available on hover or selection. Missing observations remain distinct from zero. Heatmap tiles support keyboard arrows, Home/End, and Enter selection. Growth controls persist in the URL; selecting a bar, tile or growth week synchronizes the existing detailed metrics and app tables. These views use the committed dataset and make no extra upstream requests.

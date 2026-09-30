@@ -1,4 +1,10 @@
 import "./style.css";
+import {
+  windowWeeks,
+  growthPoints,
+  growthDomain,
+  heatColor,
+} from "./growth.js";
 
 const $ = (s) => document.querySelector(s);
 const fmt = (v, digits = 2) =>
@@ -45,6 +51,8 @@ let state = {
   series: allowed("series", ["PATI", "CATI", "BAWI", "IDE"], "BAWI"),
   ide: query.get("ide") === "1",
   week: query.get("week"),
+  growth: allowed("growth", ["wow", "fourWeekGrowth"], "wow"),
+  growthRange: allowed("growthRange", ["3M", "6M", "1Y", "All"], "6M"),
 };
 let data;
 function save() {
@@ -53,7 +61,7 @@ function save() {
     ide: state.ide ? "1" : "0",
     week: state.week || "",
   });
-  history.replaceState(null, "", `${location.pathname}?${p}`);
+  history.replaceState(null, "", `${location.pathname}?${p}${location.hash}`);
 }
 function selectedWeek() {
   return (
@@ -79,7 +87,7 @@ function render() {
     base = data.baselines[state.series];
   const unavailable = !data.weeks.length;
   $("#app").innerHTML = `
- <header><a class="brand" href="./" aria-label="Agent Token Index home"><span class="brandmark"><i></i><i></i><i></i></span>ATI <span class="brand-sub">RESEARCH OBSERVATORY</span></a><nav><a href="#history">Overview</a><a href="#methodology">Methodology</a><a href="https://github.com/harni555/agent-token-index" target="_blank" rel="noreferrer">Repository ↗</a></nav></header>
+ <header><a class="brand" href="./" aria-label="Agent Token Index home"><span class="brandmark"><i></i><i></i><i></i></span>ATI <span class="brand-sub">RESEARCH OBSERVATORY</span></a><nav><a href="#history">Overview</a><a href="#growth">Growth</a><a href="#methodology">Methodology</a><a href="https://github.com/harni555/agent-token-index" target="_blank" rel="noreferrer">Repository ↗</a></nav></header>
  <main><div class="intro"><div><p class="eyebrow">OPENROUTER TELEMETRY / WEEKLY</p><h1>Agent Token Index</h1><p class="subtitle">Tracking the rise of machine-consumed intelligence</p></div><div class="freshness ${fresh.cls}"><span></span>${fresh.label}<small>Monday refresh · 12:00 UTC</small></div></div>
  <aside class="caveat"><span class="info">i</span><p><strong>A window into agent activity.</strong> Observed public OpenRouter apps, with opt-in attribution. This is not a global census. Token growth does not equal vendor revenue.</p><a href="#methodology">Read methodology</a></aside>
  ${unavailable ? `<aside class="setup"><div><strong>Historical data is awaiting its first authenticated collection.</strong><p>Coverage requested: January 1, 2025 onward. No sample values are shown. Add the OpenRouter secret and run the refresh to populate every view.</p></div><a href="https://github.com/harni555/agent-token-index/settings/secrets/actions">Set up data access ↗</a></aside>` : ""}
@@ -122,6 +130,7 @@ function render() {
          )
          .join("")
  }</select></label></div></section>
+ ${growthPanel()}
  <section class="detail"><div class="detail-title"><span class="index-label" style="--accent:${meta[state.series].color}"><b class="dot"></b>${state.series}</span><h2>${meta[state.series].name}</h2><span>${week ? `${week.start} – ${week.end}` : "No observation yet"}</span></div><div class="metrics">${[
    ["4-week growth", pct(s?.fourWeekGrowth), "Versus four weeks earlier"],
    ["Requests", fmt(s?.requests), "Observed ranked apps"],
@@ -149,9 +158,10 @@ function render() {
          .join("")
      : `<div class="empty-table"><span>${unavailable ? "Model mix will appear here" : "Model coverage is incomplete for this week"}</span><small>Daily top 50 models plus the source’s “other” bucket. Missing days are never filled with zeros.</small></div>`
  }</div></section></div>
- <section id="methodology" class="panel methodology"><div class="panel-heading"><div><p class="eyebrow">READ THE MEASURE, NOT JUST THE NUMBER</p><h2>Methodology & limitations</h2></div><span class="pill">v1.0</span></div><div class="method-grid"><article><h3>01 / Classification</h3><p><strong>PATI</strong> tracks <code>personal-agent</code>. <strong>CATI</strong> is the union of <code>cli-agent</code> and <code>cloud-agent</code>. <strong>BAWI</strong> is their deduplicated union. IDE extensions are a separate comparison, excluded from BAWI. Series overlap; do not add their displayed totals.</p><p>Categories are OpenRouter’s classifications at collection time, not proven historical classifications. New attribution, reclassification and rank turnover can change the trend.</p></article><article><h3>02 / Time & formulas</h3><p>Complete Monday–Sunday weeks in UTC. January 1–5, 2025 is retained as a partial source window but excluded from index charts. Each index uses the mean of all three complete January 2025 weeks as 100, otherwise the first available positive complete week.</p><p>WoW = W / W−1 − 1. Four-week growth = W / W−4 − 1. Moving average = mean of four consecutive complete weeks. Missing observations remain gaps. Current ${state.series} baseline: <strong>${base?.start ? `${esc(base.label)} (${base.start})` : "not established"}</strong>.</p></article><article><h3>03 / What coverage means</h3><p>OpenRouter is one venue, not a census of global inference. App attribution is opt-in; hidden and private apps are excluded. Rankings expose at most 200 apps per subcategory. At the ceiling, totals are observed lower bounds.</p><p>Share divides observed agent tokens by the public rankings dataset for the same dates, including “other.” It is not a share of all OpenRouter traffic. Private endpoints and zero-data-retention traffic are excluded by the model dataset. Empty categories are unavailable, not assumed zero.</p></article><article><h3>04 / Tokens ≠ revenue</h3><p>Tokenizers differ across providers, so totals are an approximate workload measure. Context reuse, cache behavior, free models and routing affect economics. Token growth does not establish vendor revenue, spending or productivity.</p><p>No historical spend is estimated. Model list-price snapshots begin ${data.pricesAsOf ? esc(data.pricesAsOf.slice(0, 10)) : "with the first successful collection"} for future research. They are not realized prices. Raw snapshots remain immutable; recent weeks may be restated by later source responses.</p></article></div></section>
+ <section id="methodology" class="panel methodology"><div class="panel-heading"><div><p class="eyebrow">READ THE MEASURE, NOT JUST THE NUMBER</p><h2>Methodology & limitations</h2></div><span class="pill">v1.0</span></div><div class="method-grid"><article><h3>01 / Classification</h3><p><strong>PATI</strong> tracks <code>personal-agent</code>. <strong>CATI</strong> is the union of <code>cli-agent</code> and <code>cloud-agent</code>. <strong>BAWI</strong> is their deduplicated union. IDE extensions are a separate comparison, excluded from BAWI. Series overlap; do not add their displayed totals.</p><p>Categories are OpenRouter’s classifications at collection time, not proven historical classifications. New attribution, reclassification and rank turnover can change the trend.</p></article><article><h3>02 / Time & formulas</h3><p>Complete Monday–Sunday weeks in UTC. January 1–5, 2025 is retained as a partial source window but excluded from index charts. Each index uses the mean of all three complete January 2025 weeks as 100, otherwise the first available positive complete week.</p><p>WoW = W / W−1 − 1. Four-week growth = W / W−4 − 1. Moving average = mean of four consecutive complete weeks. In the growth panel, the white line averages four weekly percentage changes (not token volumes); change in growth is measured in percentage points. Heatmap colors saturate at ±40%, but the chart uses the full value range. Missing observations remain gaps. Current ${state.series} baseline: <strong>${base?.start ? `${esc(base.label)} (${base.start})` : "not established"}</strong>.</p></article><article><h3>03 / What coverage means</h3><p>OpenRouter is one venue, not a census of global inference. App attribution is opt-in; hidden and private apps are excluded. Rankings expose at most 200 apps per subcategory. At the ceiling, totals are observed lower bounds.</p><p>Share divides observed agent tokens by the public rankings dataset for the same dates, including “other.” It is not a share of all OpenRouter traffic. Private endpoints and zero-data-retention traffic are excluded by the model dataset. Empty categories are unavailable, not assumed zero.</p></article><article><h3>04 / Tokens ≠ revenue</h3><p>Tokenizers differ across providers, so totals are an approximate workload measure. Context reuse, cache behavior, free models and routing affect economics. Token growth does not establish vendor revenue, spending or productivity.</p><p>No historical spend is estimated. Model list-price snapshots begin ${data.pricesAsOf ? esc(data.pricesAsOf.slice(0, 10)) : "with the first successful collection"} for future research. They are not realized prices. Raw snapshots remain immutable; recent weeks may be restated by later source responses.</p></article></div></section>
  <footer><div>AGENT TOKEN INDEX <span>Independent research telemetry</span></div><p>Source: <a href="https://openrouter.ai/apps">OpenRouter (openrouter.ai/apps)</a>, as of ${sourceDate("datasets/app-rankings")}.<br>Source: <a href="https://openrouter.ai/rankings">OpenRouter (openrouter.ai/rankings)</a>, as of ${sourceDate("datasets/rankings-daily")}.<br>Data licensed under <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>. Calculations and classifications described above.</p><a href="https://github.com/harni555/agent-token-index/actions">Refresh history ↗</a></footer></main>`;
   drawChart();
+  drawGrowth();
   document.querySelectorAll("[data-key]").forEach(
     (el) =>
       (el.onclick = () => {
@@ -173,6 +183,193 @@ function render() {
     render();
   };
 }
+function growthPanel() {
+  const points = growthPoints(data.weeks, state.series, state.growth);
+  const point = points.find((p) => p.end === selectedWeek()?.end);
+  const name = state.growth === "wow" ? "Week-over-week" : "Four-week";
+  const weeks = windowWeeks(data.weeks, state.growthRange);
+  const keys = Object.keys(meta).filter((k) => k !== "IDE" || state.ide);
+  return `<section id="growth" class="panel growth-panel">
+    <div class="panel-heading"><div><p class="eyebrow">THE PACE OF CHANGE / ${state.series}</p><h2>Growth, ebbs & flows</h2></div>${buttons(
+      "growthRange",
+      [
+        ["3M", "3M"],
+        ["6M", "6M"],
+        ["1Y", "1Y"],
+        ["All", "All"],
+      ],
+    )}</div>
+    <div class="growth-toolbar"><div class="growth-tabs">${buttons(
+      "series",
+      keys.map((k) => [k, k]),
+    )}${buttons("growth", [
+      ["wow", "WoW growth"],
+      ["fourWeekGrowth", "4-week growth"],
+    ])}</div><p>Above zero: expansion <span>·</span> Below zero: contraction</p></div>
+    <div class="growth-summary"><div><span>${name} token growth</span><strong class="${point?.value < 0 ? "negative" : "positive"}">${pct(point?.value)}</strong></div><div><span>Change in growth vs prior week</span><strong>${point?.change == null ? "—" : `${point.change > 0 ? "+" : ""}${point.change.toFixed(1)} pp`}</strong></div><p>${point ? `Week ending ${point.end}` : "No observation selected"}<small>Growth can slow while token usage still rises.</small></p></div>
+    <div id="growth-chart" class="chart"></div>
+    <div class="chart-caption"><span>${state.growth === "wow" ? "Bars: weekly growth · white line: trailing 4-week mean of weekly growth" : "Bars: growth versus four weeks earlier; overlapping comparison windows"}<br>Click a bar or select a week below. Missing observations remain gaps.</span><label>Inspect growth week <select id="growth-week" aria-label="Inspect growth week" ${!points.length ? "disabled" : ""}>${points.length ? points.map((p) => `<option value="${p.end}" ${p.end === selectedWeek()?.end ? "selected" : ""}>${p.end}</option>`).join("") : "<option>No observations</option>"}</select></label></div>
+    <div class="rhythm"><h3>Growth across the indices</h3><p>${name} change · ${weeks.length ? `${weeks[0].end} to ${weeks.at(-1).end}` : "No collected weeks"}. Select a tile to inspect a series and week.</p>
+      <div class="heat-scroll"><div class="heat-grid" style="--weeks:${Math.max(weeks.length, 1)}">${keys
+        .map(
+          (k) =>
+            `<div class="heat-row" role="group" aria-label="${k} growth history"><span class="heat-label" style="color:${meta[k].color}">${k}</span>${weeks
+              .map((w, i) => {
+                const v = w.series[k][state.growth];
+                return `<button class="heat-cell ${w.end === selectedWeek()?.end && k === state.series ? "chosen" : ""}" style="background:${heatColor(v)}" data-heat-series="${k}" data-heat-week="${w.end}" tabindex="${
+                  i ===
+                  Math.max(
+                    0,
+                    weeks.findIndex((w) => w.end === selectedWeek()?.end),
+                  )
+                    ? 0
+                    : -1
+                }" title="${k} · ${w.end} · ${pct(v)}" aria-label="${k}, week ending ${w.end}, ${v == null ? "unavailable" : pct(v)}"></button>`;
+              })
+              .join("")}</div>`,
+        )
+        .join("")}</div></div>
+      <div class="heat-key"><span><i style="background:#ff9b91"></i>Contraction</span><span><i style="background:#70e5b2"></i>Expansion</span><span><i style="background:#26313f"></i>Missing</span><small>Stronger color = larger change; color saturates at ±40%. Exact values on hover or selection. Use arrow keys within each row.</small></div>
+    </div></section>`;
+}
+
+function drawGrowth() {
+  const all = growthPoints(data.weeks, state.series, state.growth);
+  const dates = new Set(
+    windowWeeks(data.weeks, state.growthRange).map((w) => w.end),
+  );
+  const points = all.filter((p) => dates.has(p.end));
+  const values = points.map((p) => p.value).filter((v) => v != null);
+  const target = $("#growth-chart");
+  if (!values.length) {
+    target.innerHTML =
+      '<div class="chart-empty"><h3>No comparable growth observations</h3><p>Growth needs a valid earlier observation. Missing values are never treated as zero.</p></div>';
+  } else {
+    const W = Math.max(280, target.clientWidth),
+      H = 300,
+      L = 80,
+      R = 28,
+      T = 24,
+      B = 42;
+    const [lo, hi] = growthDomain(
+      state.growth === "wow"
+        ? [...values, ...points.map((p) => p.mean)]
+        : values,
+    );
+    const x = (i) => L + ((W - L - R) * (i + 0.5)) / points.length;
+    const y = (v) => T + ((H - T - B) * (hi - v)) / (hi - lo);
+    const width = Math.max(2, ((W - L - R) / points.length) * 0.68);
+    let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${state.series} ${state.growth === "wow" ? "week-over-week" : "four-week"} percentage growth; bars above zero are expansion and below zero are contraction.">`;
+    for (let i = 0; i <= 4; i++) {
+      const v = lo + ((hi - lo) * i) / 4;
+      if (Math.abs(v) < (hi - lo) * 0.06) continue;
+      svg += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="#29343f" stroke-dasharray="3 5"/><text x="${L - 10}" y="${y(v) + 4}" text-anchor="end" fill="#97a4b5" font-size="12">${fmt(v, 1)}%</text>`;
+    }
+    svg += `<line x1="${L}" x2="${W - R}" y1="${y(0)}" y2="${y(0)}" stroke="#bfcedf" stroke-width="1.3"/><text x="${L - 10}" y="${y(0) + 4}" text-anchor="end" fill="#eaf2fd" font-size="12">0%</text>`;
+    points.forEach((p, i) => {
+      if (p.value == null) return;
+      svg += `<rect x="${x(i) - width / 2}" y="${Math.min(y(0), y(p.value))}" width="${width}" height="${Math.max(1, Math.abs(y(p.value) - y(0)))}" rx="2" fill="${p.value < 0 ? "#ff9b91" : "#70e5b2"}" opacity="${p.end === selectedWeek()?.end ? 1 : 0.75}"><title>${p.end}: ${pct(p.value)}</title></rect>`;
+    });
+    if (state.growth === "wow") {
+      let path = "",
+        connected = false;
+      points.forEach((p, i) => {
+        if (p.mean == null) {
+          connected = false;
+          return;
+        }
+        path += `${connected ? "L" : "M"}${x(i)},${y(p.mean)} `;
+        connected = true;
+      });
+      svg += `<path d="${path}" stroke="#eaf2fd" stroke-width="2.5" fill="none"/>`;
+    }
+    for (const i of [
+      ...new Set([
+        0,
+        Math.floor((points.length - 1) / 3),
+        Math.floor(((points.length - 1) * 2) / 3),
+        points.length - 1,
+      ]),
+    ])
+      svg += `<text x="${x(i)}" y="${H - 12}" text-anchor="middle" fill="#97a4b5" font-size="12">${points[i].end.slice(0, 7)}</text>`;
+    const selected = points.findIndex((p) => p.end === selectedWeek()?.end);
+    if (selected >= 0)
+      svg += `<line x1="${x(selected)}" x2="${x(selected)}" y1="${T}" y2="${H - B}" stroke="#ffffff" opacity=".25"/>`;
+    target.innerHTML =
+      svg + '</svg><div id="growth-tooltip" class="tooltip" hidden></div>';
+    const el = $("#growth-chart svg");
+    const index = (e) => {
+      const rect = el.getBoundingClientRect();
+      return Math.max(
+        0,
+        Math.min(
+          points.length - 1,
+          Math.floor(
+            ((((e.clientX - rect.left) / rect.width) * W - L) / (W - L - R)) *
+              points.length,
+          ),
+        ),
+      );
+    };
+    el.onpointermove = (e) => {
+      const p = points[index(e)],
+        tip = $("#growth-tooltip");
+      tip.hidden = false;
+      tip.innerHTML = `<strong>Week ending ${p.end}</strong><div><span>${state.series} growth</span><b>${pct(p.value)}</b></div>${state.growth === "wow" ? `<div><span>4-week mean</span><b>${pct(p.mean)}</b></div>` : ""}`;
+      tip.style.left =
+        Math.max(
+          0,
+          Math.min(
+            e.clientX - el.getBoundingClientRect().left + 12,
+            el.getBoundingClientRect().width - 205,
+          ),
+        ) + "px";
+      tip.style.top = "25px";
+    };
+    el.onpointerleave = () => ($("#growth-tooltip").hidden = true);
+    el.onclick = (e) => {
+      state.week = points[index(e)].end;
+      save();
+      render();
+    };
+  }
+  $("#growth-week").onchange = (e) => {
+    state.week = e.target.value;
+    save();
+    render();
+  };
+  document.querySelectorAll("[data-heat-week]").forEach((el) => {
+    el.onclick = () => {
+      state.series = el.dataset.heatSeries;
+      state.week = el.dataset.heatWeek;
+      save();
+      render();
+      document
+        .querySelector(
+          `[data-heat-series="${state.series}"][data-heat-week="${state.week}"]`,
+        )
+        ?.focus({ preventScroll: true });
+    };
+    el.onkeydown = (e) => {
+      if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
+      e.preventDefault();
+      const row = [...el.parentElement.querySelectorAll("button")],
+        i = row.indexOf(el);
+      const next =
+        e.key === "Home"
+          ? 0
+          : e.key === "End"
+            ? row.length - 1
+            : Math.max(
+                0,
+                Math.min(row.length - 1, i + (e.key === "ArrowRight" ? 1 : -1)),
+              );
+      row.forEach((b, j) => (b.tabIndex = j === next ? 0 : -1));
+      row[next].focus();
+    };
+  });
+}
+
 function sourceDate(endpoint) {
   const dates = data.sources
     .filter((s) => s.endpoint === endpoint)
@@ -191,7 +388,10 @@ function drawChart() {
     cutoff.setUTCMonth(cutoff.getUTCMonth() - months[state.range]);
     weeks = weeks.filter((w) => new Date(w.end + "T00:00:00Z") >= cutoff);
   }
-  const keys = state.mode === "normalized" ? [state.series] : Object.keys(meta).filter((k) => k !== "IDE" || state.ide);
+  const keys =
+    state.mode === "normalized"
+      ? [state.series]
+      : Object.keys(meta).filter((k) => k !== "IDE" || state.ide);
   const metric =
     state.mode === "normalized"
       ? state.smooth === "ma4"
@@ -296,9 +496,13 @@ async function start() {
     if (data.schemaVersion !== 1 || !Array.isArray(data.weeks))
       throw Error("Unsupported data format");
     render();
+    if (["#growth", "#history", "#methodology"].includes(location.hash)) {
+      requestAnimationFrame(() => document.querySelector(location.hash)?.scrollIntoView());
+    }
   } catch (e) {
     $("#app").innerHTML =
       '<main class="load-error"><h1>Data could not be loaded</h1><p>The research snapshot is temporarily unavailable. Please reload or check the refresh history.</p><a href="https://github.com/harni555/agent-token-index/actions">View refresh history</a></main>';
   }
 }
+window.addEventListener("resize", () => { if (data) drawGrowth(); });
 start();
