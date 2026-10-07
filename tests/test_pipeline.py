@@ -1,5 +1,6 @@
 import datetime as dt
 import importlib.util
+import json
 from pathlib import Path
 import tempfile
 import unittest
@@ -87,28 +88,76 @@ class PipelineTests(unittest.TestCase):
         with self.assertRaises(ValueError):p.validate_index(doc)
 
     def test_offline_end_to_end_union_and_reproducible_outputs(self):
+        self.check_offline_end_to_end(
+            dt.date(2026, 9, 27), [('2026-09-21', '2026-09-27')])
+
+    def test_offline_end_to_end_across_month_boundary(self):
+        self.check_offline_end_to_end(
+            dt.date(2026, 10, 4),
+            [('2026-09-28', '2026-09-30'), ('2026-10-01', '2026-10-04')])
+
+    def test_offline_end_to_end_across_year_boundary(self):
+        self.check_offline_end_to_end(
+            dt.date(2027, 1, 3),
+            [('2026-12-28', '2026-12-31'), ('2027-01-01', '2027-01-03')])
+
+    def check_offline_end_to_end(self, end, model_windows):
+        start = end - dt.timedelta(days=6)
+        now = dt.datetime.combine(end + dt.timedelta(days=1), dt.time(), dt.timezone.utc)
         with tempfile.TemporaryDirectory() as directory:
-            root=Path(directory)
-            end=p.last_sunday()
-            start=end-dt.timedelta(days=6)
-            params={'start_date':start.isoformat(),'end_date':end.isoformat()}
-            meta={**params,'as_of':p.utcnow()}
-            with patch.object(p,'ROOT',root),patch.object(p,'RAW',root/'data/raw'),patch.object(p,'OUT',root/'public/data/index.json'),patch.object(p,'START',start):
-                models=[{'date':(start+dt.timedelta(days=i)).isoformat(),'model_permaslug':'fixture/model','total_tokens':'10000'} for i in range(7)]
-                p.snapshot('datasets/rankings-daily',params,{'meta':meta,'data':models})
+            root = Path(directory)
+            with (patch.object(p, 'ROOT', root),
+                  patch.object(p, 'RAW', root/'data/raw'),
+                  patch.object(p, 'OUT', root/'public/data/index.json'),
+                  patch.object(p, 'START', start),
+                  patch.object(p.dt, 'datetime', wraps=dt.datetime) as clock):
+                # Exercise freshness validation without depending on the wall clock.
+                clock.now.return_value = now
+                models = [{'date': (start + dt.timedelta(days=i)).isoformat(),
+                           'model_permaslug': 'fixture/model', 'total_tokens': '10000'}
+                          for i in range(7)]
+                snapshots = []
+                # Model requests stop at calendar-month boundaries; app requests do not.
+                for first, last in model_windows:
+                    params = {'start_date': first, 'end_date': last}
+                    meta = {**params, 'as_of': p.utcnow()}
+                    rows = [row for row in models if first <= row['date'] <= last]
+                    p.snapshot('datasets/rankings-daily', params, {'meta': meta, 'data': rows})
+                    snapshots.append((params, meta, rows))
+                meta = {'start_date': str(start), 'end_date': str(end), 'as_of': p.utcnow()}
                 for category,id,tokens in [('personal-agent',1,'100'),('cli-agent',2,'200'),('cloud-agent',2,'200'),('ide-extension',3,'300')]:
                     p.snapshot('datasets/app-rankings',p.app_params(str(start),str(end),category),{'meta':meta,'data':[self.row(id,tokens)]})
                 p.rebuild(end)
-                doc=__import__('json').loads(p.OUT.read_text())
-                self.assertEqual(doc['weeks'][0]['series']['BAWI']['tokens'],'300')
-                self.assertEqual(doc['weeks'][0]['series']['CATI']['tokens'],'200')
-                self.assertEqual(doc['weeks'][0]['series']['BAWI']['index'],100)
-                self.assertEqual(doc['weeks'][0]['platformTokens'],'70000')
-                self.assertEqual(p.OUT.read_bytes(),(root/'data/derived/index.json').read_bytes())
-                prior=p.OUT.read_bytes()
-                p.snapshot('datasets/rankings-daily',params,{'meta':meta,'data':models[1:]})
-                with self.assertRaises(ValueError):p.rebuild(end)
-                self.assertEqual(p.OUT.read_bytes(),prior)
+                doc = json.loads(p.OUT.read_text())
+                self.assertEqual(doc['dataThrough'], str(end))
+                self.assertEqual(len(doc['weeks']), 1)
+                self.assertEqual(doc['weeks'][0]['series']['BAWI']['tokens'], '300')
+                self.assertEqual(doc['weeks'][0]['series']['CATI']['tokens'], '200')
+                self.assertEqual(doc['weeks'][0]['series']['BAWI']['index'], 100)
+                self.assertEqual(doc['weeks'][0]['platformTokens'], '70000')
+                self.assertEqual(doc['weeks'][0]['missingModelDates'], [])
+                self.assertEqual(
+                    [source['queryId'] for source in doc['sources']
+                     if source['endpoint'] == 'datasets/rankings-daily'],
+                    [p.query_id('datasets/rankings-daily', params)
+                     for params, _, _ in snapshots])
+                derived = root/'data/derived/index.json'
+                prior = p.OUT.read_bytes()
+                self.assertEqual(prior, derived.read_bytes())
+                p.rebuild(end)
+                self.assertEqual(p.OUT.read_bytes(), prior)
+                self.assertEqual(derived.read_bytes(), prior)
+                for params, meta, rows in snapshots:
+                    with self.subTest(missing_date=rows[0]['date']):
+                        # A later response must win over the original cached snapshot.
+                        clock.now.return_value += dt.timedelta(seconds=1)
+                        p.snapshot('datasets/rankings-daily', params, {'meta': meta, 'data': rows[1:]})
+                        with self.assertRaisesRegex(ValueError, 'Latest platform window is incomplete'):
+                            p.rebuild(end)
+                        self.assertEqual(p.OUT.read_bytes(), prior)
+                        self.assertEqual(derived.read_bytes(), prior)
+                        clock.now.return_value += dt.timedelta(seconds=1)
+                        p.snapshot('datasets/rankings-daily', params, {'meta': meta, 'data': rows})
 
     def test_historical_denominator_gap_is_explicit_and_never_zero_filled(self):
         end=p.last_sunday()
