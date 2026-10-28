@@ -30,6 +30,10 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+      - name: Observe public GPU rate cards (retain last-good on failure)
+        id: gpu
+        continue-on-error: true
+        run: python scripts/gpu_prices.py
       - name: Collect immutable snapshots and rebuild indices
         id: collect
         env:
@@ -43,7 +47,7 @@ jobs:
         run: |
           git config user.name 'agent-token-index[bot]'
           git config user.email 'agent-token-index[bot]@users.noreply.github.com'
-          git add data/raw
+          git add data/raw data/gpu-snapshots public/data/gpu-prices.json
           if [ '${{ steps.collect.outcome }}' = 'success' ]; then
             git add data/derived public/data/index.json
           fi
@@ -70,5 +74,6 @@ jobs:
         if: always()
         run: |
           echo '### Agent Token Index refresh' >> "$GITHUB_STEP_SUMMARY"
+          echo 'GPU collection: ${{ steps.gpu.outcome }}. See per-provider status and original observation dates.' >> "$GITHUB_STEP_SUMMARY"
           echo 'Collection: ${{ steps.collect.outcome }}. Deployment: ${{ steps.deployment.outcome }}.' >> "$GITHUB_STEP_SUMMARY"
           echo 'On failure, inspect logs and retained evidence; the prior Pages deployment remains live.' >> "$GITHUB_STEP_SUMMARY"

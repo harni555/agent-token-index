@@ -1,3 +1,4 @@
+import { loadGpu, gpuPanel, bindGpu } from "./gpu.js";
 import "./style.css";
 import {
   windowWeeks,
@@ -87,7 +88,7 @@ function render() {
     base = data.baselines[state.series];
   const unavailable = !data.weeks.length;
   $("#app").innerHTML = `
- <header><a class="brand" href="./" aria-label="Agent Token Index home"><span class="brandmark"><i></i><i></i><i></i></span>ATI <span class="brand-sub">RESEARCH OBSERVATORY</span></a><nav><a href="#history">Overview</a><a href="#growth">Growth</a><a href="#methodology">Methodology</a><a href="https://github.com/harni555/agent-token-index" target="_blank" rel="noreferrer">Repository ↗</a></nav></header>
+ <header><a class="brand" href="./" aria-label="Agent Token Index home"><span class="brandmark"><i></i><i></i><i></i></span>ATI <span class="brand-sub">RESEARCH OBSERVATORY</span></a><nav><a href="#history">Overview</a><a href="#growth">Growth</a><a href="#gpu">GPU prices</a><a href="#methodology">Methodology</a><a href="https://github.com/harni555/agent-token-index" target="_blank" rel="noreferrer">Repository ↗</a></nav></header>
  <main><div class="intro"><div><p class="eyebrow">OPENROUTER TELEMETRY / WEEKLY</p><h1>Agent Token Index</h1><p class="subtitle">Tracking the rise of machine-consumed intelligence</p></div><div class="freshness ${fresh.cls}"><span></span>${fresh.label}<small>Monday refresh · 12:00 UTC</small></div></div>
  <aside class="caveat"><span class="info">i</span><p><strong>A window into agent activity.</strong> Observed public OpenRouter apps, with opt-in attribution. This is not a global census. Token growth does not equal vendor revenue.</p><a href="#methodology">Read methodology</a></aside>
  ${unavailable ? `<aside class="setup"><div><strong>Historical data is awaiting its first authenticated collection.</strong><p>Coverage requested: January 1, 2025 onward. No sample values are shown. Add the OpenRouter secret and run the refresh to populate every view.</p></div><a href="https://github.com/harni555/agent-token-index/settings/secrets/actions">Set up data access ↗</a></aside>` : ""}
@@ -158,8 +159,10 @@ function render() {
          .join("")
      : `<div class="empty-table"><span>${unavailable ? "Model mix will appear here" : "Model coverage is incomplete for this week"}</span><small>Daily top 50 models plus the source’s “other” bucket. Missing days are never filled with zeros.</small></div>`
  }</div></section></div>
+ ${gpuPanel()}
  <section id="methodology" class="panel methodology"><div class="panel-heading"><div><p class="eyebrow">READ THE MEASURE, NOT JUST THE NUMBER</p><h2>Methodology & limitations</h2></div><span class="pill">v1.0</span></div><div class="method-grid"><article><h3>01 / Classification</h3><p><strong>PATI</strong> tracks <code>personal-agent</code>. <strong>CATI</strong> is the union of <code>cli-agent</code> and <code>cloud-agent</code>. <strong>BAWI</strong> is their deduplicated union. IDE extensions are a separate comparison, excluded from BAWI. Series overlap; do not add their displayed totals.</p><p>Categories are OpenRouter’s classifications at collection time, not proven historical classifications. New attribution, reclassification and rank turnover can change the trend.</p></article><article><h3>02 / Time & formulas</h3><p>Complete Monday–Sunday weeks in UTC. January 1–5, 2025 is retained as a partial source window but excluded from index charts. Each index uses the mean of all three complete January 2025 weeks as 100, otherwise the first available positive complete week.</p><p>WoW = W / W−1 − 1. Four-week growth = W / W−4 − 1. Moving average = mean of four consecutive complete weeks. In the growth panel, the white line averages four weekly percentage changes (not token volumes); change in growth is measured in percentage points. Heatmap colors saturate at ±40%, but the chart uses the full value range. Missing observations remain gaps. Current ${state.series} baseline: <strong>${base?.start ? `${esc(base.label)} (${base.start})` : "not established"}</strong>.</p></article><article><h3>03 / What coverage means</h3><p>OpenRouter is one venue, not a census of global inference. App attribution is opt-in; hidden and private apps are excluded. Rankings expose at most 200 apps per subcategory. At the ceiling, totals are observed lower bounds.</p><p>Share divides observed agent tokens by the public rankings dataset for the same dates, including “other.” It is not a share of all OpenRouter traffic. Private endpoints and zero-data-retention traffic are excluded by the model dataset. Empty categories are unavailable, not assumed zero.</p></article><article><h3>04 / Tokens ≠ revenue</h3><p>Tokenizers differ across providers, so totals are an approximate workload measure. Context reuse, cache behavior, free models and routing affect economics. Token growth does not establish vendor revenue, spending or productivity.</p><p>No historical spend is estimated. Model list-price snapshots begin ${data.pricesAsOf ? esc(data.pricesAsOf.slice(0, 10)) : "with the first successful collection"} for future research. They are not realized prices. Raw snapshots remain immutable; recent weeks may be restated by later source responses.</p></article></div></section>
- <footer><div>AGENT TOKEN INDEX <span>Independent research telemetry</span></div><p>Source: <a href="https://openrouter.ai/apps">OpenRouter (openrouter.ai/apps)</a>, as of ${sourceDate("datasets/app-rankings")}.<br>Source: <a href="https://openrouter.ai/rankings">OpenRouter (openrouter.ai/rankings)</a>, as of ${sourceDate("datasets/rankings-daily")}.<br>Data licensed under <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>. Calculations and classifications described above.</p><a href="https://github.com/harni555/agent-token-index/actions">Refresh history ↗</a></footer></main>`;
+ <footer><div>AGENT TOKEN INDEX <span>Independent research telemetry</span></div><p>Source: <a href="https://openrouter.ai/apps">OpenRouter (openrouter.ai/apps)</a>, as of ${sourceDate("datasets/app-rankings")}.<br>Source: <a href="https://openrouter.ai/rankings">OpenRouter (openrouter.ai/rankings)</a>, as of ${sourceDate("datasets/rankings-daily")}.<br>OpenRouter data licensed under <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>. Calculations and classifications described above.</p><a href="https://github.com/harni555/agent-token-index/actions">Refresh history ↗</a></footer></main>`;
+  bindGpu();
   drawChart();
   drawGrowth();
   document.querySelectorAll("[data-key]").forEach(
@@ -495,8 +498,9 @@ async function start() {
     data = await r.json();
     if (data.schemaVersion !== 1 || !Array.isArray(data.weeks))
       throw Error("Unsupported data format");
+    await loadGpu(import.meta.env.BASE_URL);
     render();
-    if (["#growth", "#history", "#methodology"].includes(location.hash)) {
+    if (["#growth", "#history", "#methodology", "#gpu"].includes(location.hash)) {
       requestAnimationFrame(() => document.querySelector(location.hash)?.scrollIntoView());
     }
   } catch (e) {
