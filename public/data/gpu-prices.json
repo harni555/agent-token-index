@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-10-28T01:44:34.272473Z",
+  "generated_at": "2026-11-02T21:36:45.397917Z",
   "unit": "USD/GPU-hour",
   "methodology": "Observed provider rate cards, not a GPU price index. No cross-hardware composite, capacity inference, token-cost conversion, or reconstructed history.",
   "providers": [
@@ -9,9 +9,9 @@
       "name": "Lambda",
       "url": "https://lambda.ai/instances",
       "status": "current",
-      "observed_at": "2026-10-28T01:44:34.272473Z",
+      "observed_at": "2026-11-02T21:36:45.397917Z",
       "provider_updated_at": null,
-      "last_attempt_at": "2026-10-28T01:44:34.272473Z",
+      "last_attempt_at": "2026-11-02T21:36:45.397917Z",
       "error": null,
       "disclosures": [
         "Posted USD per-GPU-hour on-demand rates, not executed transaction prices or guaranteed capacity.",
@@ -21,8 +21,8 @@
       ],
       "offers": [
         {
-          "id": "lambda-nvidia-b200-sxm6-180gb-8x",
-          "gpu": "NVIDIA B200 SXM6",
+          "id": "lambda-nvidia-hgx-b200-180gb-8x",
+          "gpu": "NVIDIA HGX B200",
           "memory_gb": 180,
           "gpu_count": 8,
           "price_usd_per_gpu_hour": 6.69,
@@ -36,8 +36,8 @@
           "storage": "22 TiB SSD"
         },
         {
-          "id": "lambda-nvidia-h100-sxm-80gb-8x",
-          "gpu": "NVIDIA H100 SXM",
+          "id": "lambda-nvidia-hgx-h100-80gb-8x",
+          "gpu": "NVIDIA HGX H100",
           "memory_gb": 80,
           "gpu_count": 8,
           "price_usd_per_gpu_hour": 3.99,
@@ -51,8 +51,8 @@
           "storage": "22 TiB SSD"
         },
         {
-          "id": "lambda-nvidia-a100-sxm-80gb-8x",
-          "gpu": "NVIDIA A100 SXM",
+          "id": "lambda-nvidia-hgx-a100-80gb-8x",
+          "gpu": "NVIDIA HGX A100",
           "memory_gb": 80,
           "gpu_count": 8,
           "price_usd_per_gpu_hour": 2.79,
@@ -66,8 +66,8 @@
           "storage": "19.5 TiB SSD"
         },
         {
-          "id": "lambda-nvidia-a100-sxm-40gb-8x",
-          "gpu": "NVIDIA A100 SXM",
+          "id": "lambda-nvidia-hgx-a100-40gb-8x",
+          "gpu": "NVIDIA HGX A100",
           "memory_gb": 40,
           "gpu_count": 8,
           "price_usd_per_gpu_hour": 1.99,
@@ -351,7 +351,7 @@
           "storage": "512 GiB SSD"
         }
       ],
-      "source_sha256": "09c05daa10810eddac6145adfc09ae81b8a2433b794472049cedf9d479f07e8e"
+      "source_sha256": "b6f40c1ec075e9596f4fe8579e906f74f9cda8b62e3d14547992c34d308140fe"
     },
     {
       "id": "vast",
