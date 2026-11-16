@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-11-09T22:10:28.581377Z",
+  "generated_at": "2026-11-16T21:51:42.922151Z",
   "unit": "USD/GPU-hour",
   "methodology": "Observed provider rate cards, not a GPU price index. No cross-hardware composite, capacity inference, token-cost conversion, or reconstructed history.",
   "providers": [
@@ -9,9 +9,9 @@
       "name": "Lambda",
       "url": "https://lambda.ai/instances",
       "status": "current",
-      "observed_at": "2026-11-09T22:10:28.581377Z",
+      "observed_at": "2026-11-16T21:51:42.922151Z",
       "provider_updated_at": null,
-      "last_attempt_at": "2026-11-09T22:10:28.581377Z",
+      "last_attempt_at": "2026-11-16T21:51:42.922151Z",
       "error": null,
       "disclosures": [
         "Posted USD per-GPU-hour on-demand rates, not executed transaction prices or guaranteed capacity.",
@@ -351,7 +351,7 @@
           "storage": "512 GiB SSD"
         }
       ],
-      "source_sha256": "6e09e8b0fb8b0f61f69510aaf31aaf06881549b1e3ad74db18a46110a5d0e350"
+      "source_sha256": "8bb1d746d43d5d9000fc72c760f6a4667f895c987c77787f45ebb4a7214c76fe"
     },
     {
       "id": "vast",
