@@ -1,0 +1,1 @@
+{"endpoint": "datasets/rankings-daily", "fetchedAt": "2026-11-23T23:40:49.688706+00:00", "params": {"end_date": "2025-07-15", "start_date": "2025-07-15"}, "payload": {"data": [], "meta": {"as_of": "2026-11-23T23:40:49.633Z", "end_date": "2025-07-15", "start_date": "2025-07-15", "version": "v1"}}}

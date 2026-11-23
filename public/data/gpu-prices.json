@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-11-16T21:51:42.922151Z",
+  "generated_at": "2026-11-23T23:40:44.590135Z",
   "unit": "USD/GPU-hour",
   "methodology": "Observed provider rate cards, not a GPU price index. No cross-hardware composite, capacity inference, token-cost conversion, or reconstructed history.",
   "providers": [
@@ -9,9 +9,9 @@
       "name": "Lambda",
       "url": "https://lambda.ai/instances",
       "status": "current",
-      "observed_at": "2026-11-16T21:51:42.922151Z",
+      "observed_at": "2026-11-23T23:40:44.590135Z",
       "provider_updated_at": null,
-      "last_attempt_at": "2026-11-16T21:51:42.922151Z",
+      "last_attempt_at": "2026-11-23T23:40:44.590135Z",
       "error": null,
       "disclosures": [
         "Posted USD per-GPU-hour on-demand rates, not executed transaction prices or guaranteed capacity.",
